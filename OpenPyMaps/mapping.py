@@ -7,7 +7,7 @@ import matplotlib.image as mpimg
 import matplotlib as mpl
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import zoom as image_zoom
-import convert_coo
+import CoordinateConverter
 
 # XXX: The conversions into pixels should really be done within the map object
 
@@ -145,7 +145,7 @@ def num2deg(xtile, ytile, zoom):
     return (lat_deg, lon_deg)
 
 def get_zone_number(self, lat, lon):
-    converter = convert_coo.Converter([lat, long], type=convert_coo.LATLONG)
+    converter = CoordinateConverter.Converter([lat, long], type=CoordinateConverter.LATLON)
     return converter.zone_letter, converter.zone_number
 
 # Gets a tile from cache or if not present downloads from osm server
@@ -170,7 +170,7 @@ class Coordinate():
         
     def from_gauss_krueger(self, right, height):
         if self.converter is None:
-            self.converter = convert_coo.Converter([right, height], type=convert_coo.GAUSSKRUGER)
+            self.converter = CoordinateConverter.Converter([right, height], type=CoordinateConverter.GAUSSKRUGER)
         
         x,y = self.converter.GK2UTM(right, height)
         self.x = x
@@ -179,7 +179,7 @@ class Coordinate():
     
     def from_lat_long(self, lat, long):
         if self.converter is None:
-            self.converter = convert_coo.Converter([lat, long], type=convert_coo.LATLONG)
+            self.converter = CoordinateConverter.Converter([lat, long], type=CoordinateConverter.LATLON)
         x,y = self.converter.LatLong2UTM(lat, long)
         self.x = x
         self.y = y
@@ -187,7 +187,7 @@ class Coordinate():
     
     def from_UTM(self, x, y, zone_letter, zone_number):
         if self.converter is None:
-            self.converter = convert_coo.Converter()
+            self.converter = CoordinateConverter.Converter()
             self.converter.zone_letter = zone_letter
             self.converter.zone_number = zone_number
         self.x = x
