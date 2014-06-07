@@ -12,32 +12,24 @@ import CoordinateConverter
 # XXX: The conversions into pixels should really be done within the map object
 
 class Map():
-    def __init__(self, coo1, coo2, zoom):
-        if isinstance(coo1, list):
-            coo1 = Coordinate().from_lat_long(coo1[0], coo1[1])
-        elif isinstance(coo1, Coordinate):
+    def __init__(self, center_coo, size, zoom):
+        if isinstance(center_coo, list):
+            center_coo = Coordinate().from_lat_long(center_coo[0], center_coo[1])
+        elif isinstance(center_coo, Coordinate):
             pass
         else:
             raise ValueError("Please provide a Coordinate instance or a lat/long pair")
         
-        if isinstance(coo2, list):
-            coo2 = Coordinate().from_lat_long(coo2[0], coo2[1])
-        elif isinstance(coo2, Coordinate):
-            pass
-        else:
-            raise ValueError("Please provide a Coordinate instance or a lat/long pair")
-        
-        
+        # XXX This should of course be a temp folder at some point
         if not os.path.exists("tiles/"):
             os.mkdir("tiles/")
             
-        (x_l, y_l, zoom) = deg2num(coo1.get_lat_long()[0], coo1.get_lat_long()[1], zoom)
-        (x_r, y_r, zoom) = deg2num(coo2.get_lat_long()[0], coo2.get_lat_long()[1], zoom)
+        (x, y, zoom) = deg2num(center_coo.get_lat_long()[0], center_coo.get_lat_long()[1], zoom)
         
-        x_l, y_l, x_r, y_r = int(x_l), int(y_l), int(x_r), int(y_r)
-        
+        x, y = int(x), int(y)
+        #asdfsdfadfasf
         data = None
-        for x in range(x_l, x_r+1):
+        for x in range(x, x+1):
             datacolumn = None
             for y in range(y_l, y_r+1):
                 tmp = getTile((x,y,zoom))
@@ -128,7 +120,7 @@ class Map():
         y = (ytile2-self.ytilerange[0])*256
         return (x,y)
     
-# Gives the tile number of osm-tiles for lat and long + zoom
+""" Gives the tile number of osm-tiles for lat and long + zoom """
 def deg2num(lat_deg, lon_deg, zoom):
     lat_rad = math.radians(lat_deg)
     n = 2.0 ** zoom
@@ -136,7 +128,7 @@ def deg2num(lat_deg, lon_deg, zoom):
     ytile = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n
     return (xtile, ytile, zoom)
 
-# Gives the coordinates of upper left corner of a tile. For lower right use xtile+1, ytile+1
+""" Gives the coordinates of upper left corner of a tile. For lower right use xtile+1, ytile+1 """
 def num2deg(xtile, ytile, zoom):
     n = 2.0 ** zoom
     lon_deg = xtile / n * 360.0 - 180.0
