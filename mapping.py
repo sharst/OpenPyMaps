@@ -270,10 +270,6 @@ class Pointcloud():
         y = [map.deg2pix(lat, lon)[1] for (lat, lon) in zip(self.lats, self.longs)]
         self.patch.set_data(x, y)
 
-        
-    
-
-
 class Marker():
     # XXX: Muss noch so umgeschrieben werden, dass man die position veraendern kann. (Get patches muss referenzen zurueckgeben!)
     """
