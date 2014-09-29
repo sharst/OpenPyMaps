@@ -8,6 +8,7 @@ import matplotlib as mpl
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import zoom as image_zoom
 import CoordinateConverter
+import ipdb
 
 # XXX: The conversions into pixels should really be done within the map object
 
@@ -19,23 +20,22 @@ class Map():
             pass
         else:
             raise ValueError("Please provide a Coordinate instance or a lat/long pair")
-        
+
         if isinstance(coo2, list):
             coo2 = Coordinate().from_lat_long(coo2[0], coo2[1])
         elif isinstance(coo2, Coordinate):
             pass
         else:
             raise ValueError("Please provide a Coordinate instance or a lat/long pair")
-        
-        
+
         if not os.path.exists("tiles/"):
             os.mkdir("tiles/")
-            
+
         (x_l, y_l, zoom) = deg2num(coo1.get_lat_long()[0], coo1.get_lat_long()[1], zoom)
         (x_r, y_r, zoom) = deg2num(coo2.get_lat_long()[0], coo2.get_lat_long()[1], zoom)
-        
+
         x_l, y_l, x_r, y_r = int(x_l), int(y_l), int(x_r), int(y_r)
-        
+
         data = None
         for x in range(x_l, x_r+1):
             datacolumn = None
@@ -49,18 +49,18 @@ class Map():
                 data = datacolumn
             else:
                 data = np.append(data, datacolumn, axis = 1)
-        
+
         # The map, tilenumbers of left upper and lower right tile
         self.ax = None
         self.map = data
         self.xtilerange=(x_l,x_r)
         self.ytilerange=(y_l,y_r)
         self.zoom = zoom
-        
+
         left_ext = num2deg(x_l, y_l, zoom)
         right_ext = num2deg(x_r+1, y_r+1, zoom)
         self.extent = [left_ext[0], left_ext[1],right_ext[0],right_ext[1]]
-        
+
         self.overlays = {}
         self.layers = {}
     
@@ -276,7 +276,7 @@ class Marker():
     Create a new marker. At the moment, a marker is always circular, with a given size. If you want a marker
     to represent a direction, you can additionally specify the direction parameter, which adds an arrow to the marker.
     If the certainty parameter is given, a circle segment is added to represent the certainty of the direction.
-    
+
     @param coo: The coordinates of the marker touple or list of (lat, lon), in degrees
     @param size: The size of the marker, in pixels
     @param text: Optionally, text to display along with this marker 
@@ -288,7 +288,7 @@ class Marker():
     Example:
         marker = Marker("Home", mapping.Marker([60.291983,-44.280996], 20, "Home", 20, [10,30])
     """
-    def __init__(self, coo, size, text=None, direction = None, certainty = None, length = 100, color = 'r'):
+    def __init__(self, map, coo, size, text=None, direction = None, certainty = None, length = 100, color = 'r'):
         self.lat = coo[0]
         self.lon = coo[1]
         self.size = size
@@ -298,35 +298,76 @@ class Marker():
         self.certainty = certainty
         self.text = text
 
-        if direction is not None:
-            # Calculate endpoint of an arrow pointing at given angle
-            start = np.radians(coo)
-            lat2 = np.arcsin(np.sin(start[0])*np.cos(0.1/6371.01) + 
-                             np.cos(start[0])*np.sin(0.1/6371.01)*np.cos(np.radians(direction)));
-            lon2 = start[1] + np.arctan2(np.sin(np.radians(direction))*np.sin(0.1/6371.01)*np.cos(start[0]), 
-                                       np.cos(0.1/6371.01)-np.sin(start[0])*np.sin(lat2));
-            
-            self.lat2, self.lon2 = lat2, lon2
+        self.patches = self.calc_patches(map)
 
-        
-    def get_patches(self, map):
+    def calc_patches(self, map):
         patches  = []
         # Figure out pixel values for given coordinates
         (x,y) = map.deg2pix(self.lat, self.lon)
-        patches.append(pp.Circle((x,y),self.size,color=self.color))
-        
+        patches.append(mpl.patches.Circle((x,y),self.size,color=self.color, axes = None))
+
         if self.direction is not None:
-            x2,y2 = map.deg2pix(np.degrees(self.lat2), np.degrees(self.lon2))
-            arrow = pp.arrow(x, y, x2-x, y2-y, shape='full', lw = 3, length_includes_head = True, head_width = 20, color = self.color)
+            # Calculate endpoint of an arrow pointing at given angle
+            start = np.radians([self.lat, self.lon])
+            lat2 = np.arcsin(np.sin(start[0])*np.cos(0.1/6371.01) + 
+                             np.cos(start[0])*np.sin(0.1/6371.01)*np.cos(np.radians(self.direction)));
+            lon2 = start[1] + np.arctan2(np.sin(np.radians(self.direction))*np.sin(0.1/6371.01)*np.cos(start[0]), 
+                                       np.cos(0.1/6371.01)-np.sin(start[0])*np.sin(lat2));
+
+            self.lat2, self.lon2 = lat2, lon2
+
+            x2, y2 = map.deg2pix(np.degrees(self.lat2), np.degrees(self.lon2))
+            arrow = mpl.patches.FancyArrow(x, y, x2-x, y2-y, shape='full', lw = 3, length_includes_head = True, head_width = 20, color = self.color, axes = None)
             patches.append(arrow)
-        
+
         if self.certainty is not None:
-            wedge = mpl.patches.Wedge((x, y), 60, self.certainty[0]-90, self.certainty[1]-90, alpha = .7, color = 'b')
+            wedge = mpl.patches.Wedge((x, y), 60, self.certainty[0]-90, self.certainty[1]-90, alpha = .7, color = 'b', axes = None)
             patches.append(wedge)
-        
+
         if self.text is not None:
-            text = pp.text(x, y, self.text)
+            text = pp.text(x, y, self.text, axes = None)
             patches.append(text)
-        
+
         return patches
-            
+
+    # This dynamically changes the data of the arrow. Please note that by this you cannot add new properties
+    # at the moment, i.e. if a marker was created without a direction, you cannot add one here. 
+    def change_data(self, map, lat=None, lon=None, size=None, direction=None, certainty=None):
+        if lat is not None:
+            self.lat = lat
+            (x, y) = map.deg2pix(self.lat, self.lon)
+            self.patches[0].center = (self.patches[0].center[0], y)
+
+        if lon is not None:
+            self.lon = lon
+            (x, y) = map.deg2pix(self.lat, self.lon)
+            self.patches[0].center = (x, self.patches[0].center[1])
+
+        if size is not None:
+            self.size = size
+            self.patches[0].set_radius(self.size)
+
+        if self.direction is not None:
+            if lat is not None or lon is not None or direction is not None:
+                (x, y) = map.deg2pix(self.lat, self.lon)
+                self.direction = direction
+                # Calculate endpoint of an arrow pointing at given angle
+                start = np.radians([self.lat, self.lon])
+                lat2 = np.arcsin(np.sin(start[0])*np.cos(0.1/6371.01) + 
+                                 np.cos(start[0])*np.sin(0.1/6371.01)*np.cos(np.radians(self.direction)));
+                lon2 = start[1] + np.arctan2(np.sin(np.radians(self.direction))*np.sin(0.1/6371.01)*np.cos(start[0]), 
+                                           np.cos(0.1/6371.01)-np.sin(start[0])*np.sin(lat2));
+    
+                self.lat2, self.lon2 = lat2, lon2
+    
+                x2, y2 = map.deg2pix(np.degrees(self.lat2), np.degrees(self.lon2))
+                arrow = mpl.patches.FancyArrow(x, y, x2-x, y2-y, shape='full', lw = 3, length_includes_head = True, head_width = 20, color = self.color, axes = None)
+                self.patches[1].set_xy(arrow.xy)
+
+        if certainty is not None:
+            # XXX: Still need to change the certainty within the wedge object!
+            self.certainty = certainty
+
+
+    def get_patches(self, map):
+        return self.patches
