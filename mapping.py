@@ -7,7 +7,7 @@ import matplotlib.image as mpimg
 import matplotlib as mpl
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import zoom as image_zoom
-import CoordinateConverter
+import Converter
 import ipdb
 
 # XXX: The conversions into pixels should really be done within the map object
@@ -65,6 +65,8 @@ class Map():
         self.layers = {}
     
     def draw(self):
+        # XXX: When a new marker has been added, it won't be painted. 
+        # Needs fixing urgently!
         if self.ax is None:
             self.fig = pp.figure("Map")
             #mng = pp.get_current_fig_manager()
@@ -145,7 +147,7 @@ def num2deg(xtile, ytile, zoom):
     return (lat_deg, lon_deg)
 
 def get_zone_number(self, lat, lon):
-    converter = CoordinateConverter.Converter([lat, long], type=CoordinateConverter.LATLON)
+    converter = Converter.Converter([lat, long], type=Converter.LATLON)
     return converter.zone_letter, converter.zone_number
 
 # Gets a tile from cache or if not present downloads from osm server
@@ -170,7 +172,7 @@ class Coordinate():
         
     def from_gauss_krueger(self, right, height):
         if self.converter is None:
-            self.converter = CoordinateConverter.Converter([right, height], type=CoordinateConverter.GAUSSKRUGER)
+            self.converter = Converter.Converter([right, height], type=Converter.GAUSSKRUGER)
         
         x,y = self.converter.GK2UTM(right, height)
         self.x = x
@@ -179,7 +181,7 @@ class Coordinate():
     
     def from_lat_long(self, lat, long):
         if self.converter is None:
-            self.converter = CoordinateConverter.Converter([lat, long], type=CoordinateConverter.LATLON)
+            self.converter = Converter.Converter([lat, long], type=Converter.LATLON)
         x,y = self.converter.LatLong2UTM(lat, long)
         self.x = x
         self.y = y
@@ -187,7 +189,7 @@ class Coordinate():
     
     def from_UTM(self, x, y, zone_letter, zone_number):
         if self.converter is None:
-            self.converter = CoordinateConverter.Converter()
+            self.converter = Converter.Converter()
             self.converter.zone_letter = zone_letter
             self.converter.zone_number = zone_number
         self.x = x
@@ -271,7 +273,6 @@ class Pointcloud():
         self.patch.set_data(x, y)
 
 class Marker():
-    # XXX: Muss noch so umgeschrieben werden, dass man die position veraendern kann. (Get patches muss referenzen zurueckgeben!)
     """
     Create a new marker. At the moment, a marker is always circular, with a given size. If you want a marker
     to represent a direction, you can additionally specify the direction parameter, which adds an arrow to the marker.
