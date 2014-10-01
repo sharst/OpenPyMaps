@@ -281,7 +281,7 @@ class Marker():
     @param coo: The coordinates of the marker touple or list of (lat, lon), in degrees
     @param size: The size of the marker, in pixels
     @param text: Optionally, text to display along with this marker 
-    @param direction: Optionally, direction to display by the means of an arrow (in degrees, clockwise from north)
+    @param direction: Optionally, direction to display by the means of an arrow (in degrees, counter-clockwise from east)
     @param certainty: Optionally, certainty of the direction to display along the arrow (touple of absolute angles clockwise from north)
     @param length: length of the arrow
     @param color: color of arrow and marker   
@@ -295,7 +295,7 @@ class Marker():
         self.size = size
         self.length = length
         self.color = color
-        self.direction = direction
+        self.direction = -direction-90
         self.certainty = certainty
         self.text = text
 
@@ -351,7 +351,7 @@ class Marker():
         if self.direction is not None:
             if lat is not None or lon is not None or direction is not None:
                 (x, y) = map.deg2pix(self.lat, self.lon)
-                self.direction = direction
+                self.direction = -direction-90
                 # Calculate endpoint of an arrow pointing at given angle
                 start = np.radians([self.lat, self.lon])
                 lat2 = np.arcsin(np.sin(start[0])*np.cos(0.1/6371.01) + 
