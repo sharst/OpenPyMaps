@@ -1,20 +1,24 @@
-import pylab as pp
 import numpy as np
 import glob, ipdb, math, os
 import urllib
 import random
-import matplotlib.image as mpimg
-import matplotlib as mpl
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import zoom as image_zoom
 import CoordinateConverter
+from tiledownloader import Downloader
+import pygame
+from collections import deque
 
-pp.ion()
 # XXX: The conversions into pixels should really be done within the map object
 
 class Map():
     def __init__(self, center_coo, size, zoom):
+        self.downloader = Downloader(self.tilecallback)
         self.size = size
+        self.display = pygame.display.set_mode(self.size)
+        # Calculate how many tiles we need to cache.
+        max_tiles = (int(self.size[0]/256.)+1) * (int(self.size[1]/256.)+1) 
+        self.tile_cache = deque([], maxlen = max_tiles)
         if isinstance(center_coo, list):
             center_coo = Coordinate().from_lat_long(center_coo[0], center_coo[1])
         elif isinstance(center_coo, Coordinate):
@@ -22,18 +26,6 @@ class Map():
         else:
             raise ValueError("Please provide a Coordinate instance or a lat/long pair")
         
-        # XXX This should of course be a temp folder at some point
-        if not os.path.exists("tiles/"):
-            os.mkdir("tiles/")
-        
-        # get the size in inches
-        dpi = 72.
-        xinch = self.size[0] / dpi
-        yinch = self.size[1] / dpi
-        
-        # plot and save in the same size as the original
-        self.fig = pp.figure("Map", figsize=(xinch,yinch))
-        self.ax = pp.axes([0., 0., 1., 1.], frameon=False, xticks=[],yticks=[])
         self.set_map(center_coo, zoom)
         
         # Register event handler
@@ -42,6 +34,11 @@ class Map():
         self.overlays = {}
         self.layers = {}
         self.draw()
+        
+    def tilecallback(self, tile):
+        (x,y) = self.deg2pix(*num2deg(tile.x, tile.y, tile.zoom))
+        pass
+        #XXX Do something!
     
     def onclick(self, event):
         print 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f'%(
@@ -51,34 +48,20 @@ class Map():
         self.draw()
     
     def set_map(self, center_coo, zoom):
-        # If there is a heatmap on top, it needs to be moved, too.
+        # XXX: If there is a heatmap on top, it needs to be moved, too.
         self.zoom = zoom
         self.center_coo = center_coo
         (x, y, zoom) = deg2num(center_coo.get_lat_long()[0], center_coo.get_lat_long()[1], zoom)
                 
-        x_l, y_l = x-(self.size[0]/2)/256. , y-(self.size[1]/2)/256.
-        x_r, y_r = x+(self.size[0]/2)/256. , y+(self.size[1]/2)/256.
+        x_l, y_l = x-(self.size[0]/2)/256., y-(self.size[1]/2)/256.
+        x_r, y_r = x+(self.size[0]/2)/256., y+(self.size[1]/2)/256.
         
-        data = None
         for x in range(int(x_l), int(x_r)+1):
-            datacolumn = None
             for y in range(int(y_l), int(y_r)+1):
-                tmp = getTile((x,y,zoom))
-                if datacolumn is None:
-                    datacolumn = tmp
-                else:
-                    datacolumn = np.append(datacolumn,tmp, axis = 0)
-            if data is None:
-                data = datacolumn
-            else:
-                data = np.append(data, datacolumn, axis = 1)
-                
-        # Cut off the edges
-        data = data[(y_l-int(y_l))*256:-(((int(y_r)+1)-y_r)*256+1),
-                    (x_l-int(x_l))*256:-(((int(x_r)+1)-x_r)*256+1)]
+                self.downloader.request_download(x, y, zoom)
+
         self.x_num = x_l
         self.y_num = y_l
-        self.map = data
     
     def draw(self):
         self.ax.clear()
@@ -170,19 +153,6 @@ def num2deg(xtile, ytile, zoom):
 def get_zone_number(self, lat, lon):
     converter = CoordinateConverter.Converter([lat, long], type=CoordinateConverter.LATLON)
     return converter.zone_letter, converter.zone_number
-
-# Gets a tile from cache or if not present downloads from osm server
-def getTile((xtile,ytile,zoom)):
-    tilename = str(zoom) + '/' + str(xtile) + '/' +str(ytile) + '.png'
-    
-    URL = 'http://' + random.choice(['a','b','c'])+ '.tile.openstreetmap.org/' + tilename
-    if (os.path.isfile('tiles/'+tilename.replace('/','_'))):
-        print "Fetching image from file: " + tilename.replace('/','_')
-    else:
-        print "Fetching image from URL: " + URL
-        urllib.urlretrieve(URL, filename = 'tiles/'+tilename.replace('/','_'))
-        
-    return mpimg.imread('tiles/'+tilename.replace('/','_'))
 
 
 class Coordinate():
